@@ -32,7 +32,7 @@ public class Coordinator {
 			for (;;) {
 				try{
 					Socket client = socket.accept();
-					new Thread(new CoordinatorThread(cport, total, options, client, portsConnected)).start();
+					//new Thread(new CoordinatorThread(cport, total, options, client, portsConnected)).start();
 				}catch(Exception e){
 					System.out.println("error "+e);
 				}
@@ -53,9 +53,9 @@ class CoordinatorThread implements Runnable{
 	
 	Socket client;
 	
-	String[] options;
+	CopyOnWriteArrayList<String> options = new CopyOnWriteArrayList<String>();
  	
-	public CoordinatorThread(int cport, int total, String[] options, Socket c,  CopyOnWriteArrayList<Integer> portsConnected) {
+	public CoordinatorThread(int cport, int total, CopyOnWriteArrayList<String> options, Socket c,  CopyOnWriteArrayList<Integer> portsConnected) {
 		this.portsConnected = portsConnected;
 		this.expectedPorts = total;
 		this.cport = cport;
@@ -124,8 +124,8 @@ class CoordinatorThread implements Runnable{
 			//step 3
 			try {
 				String message = "";
-		    	for (int i = 0; i < options.length ;i++) {
-		    		message = message + " " + options[i];
+		    	for (int i = 0; i < options.size() ;i++) {
+		    		message = message + " " + options.get(i);
 		    	}
 				out.println("VOTE_OPTIONS" + message);
 				out.flush();
@@ -139,10 +139,12 @@ class CoordinatorThread implements Runnable{
 				//Step 1
 				while(true) {
 					String line;
+					
 					while(in.ready()) {
+
 						line = in.readLine();
 						String[] lineList = line.split(" ");
-						if(lineList[0] == "OUTCOME") {
+						if(lineList[0] .equals("OUTCOME")) {
 							System.out.println("YO IM HERE AND THE RESULT IS "+ lineList[1]);				
 						} 
 						
