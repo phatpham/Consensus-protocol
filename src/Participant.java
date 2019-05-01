@@ -90,19 +90,9 @@ class ListenThread implements Runnable {
 			e.printStackTrace();
 		}
 	}
-
-	public void run() {
-
 	
-		try {
-			in = new BufferedReader(new InputStreamReader(csocket.getInputStream()));;
-			out = new PrintWriter(csocket.getOutputStream());
-			out.println("JOIN " + pport);
-			out.flush();
-		} catch (IOException e2) {
-			e2.printStackTrace();
-		}
-		
+	//Find other participants and populate possible options
+	public void receiveBasicDetails(BufferedReader in) {
 		boolean notDone = true;
 		while (notDone) {
 			// Read incoming message and update variables based on message received
@@ -133,49 +123,64 @@ class ListenThread implements Runnable {
 			}
 
 		}
-		//Step 4
+	}
+	
+	public void run() {
+
 		try {
-			ServerSocket participantSocket = new ServerSocket(pport);
-			new Thread(new Runnable() {
+			//Start listening on port
+			
+			//Set up read/print to server
+			in = new BufferedReader(new InputStreamReader(csocket.getInputStream()));;
+			out = new PrintWriter(csocket.getOutputStream());
+			out.println("JOIN " + pport);
+			out.flush();
+		} catch (IOException e2) {
+			e2.printStackTrace();
+		}
+		
+		receiveBasicDetails(in);
+		
+		new Thread(new Runnable() {
 
-				@Override
-				public void run() {
-					Socket newClient;
-					try {
-						newClient = participantSocket.accept();
-						new Thread(new ListenPeerThread(out, pport, newClient, others, options)).start();;					
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
+			@Override
+			public void run() {			
+				ServerSocket participantSocket = null;
+				try {
+					participantSocket = new ServerSocket(pport);
+				} catch (IOException e1) {
+					e1.printStackTrace();
 				}
-				
-			}).start();;
-			
-			//-----------------
-			//Generate random votes 
-			Random rand = new Random(); 
-			int n = rand.nextInt(options.size()); 
-			String randomVote = "A";
-			
-			//Send votes
-			try {
-				PrintWriter newOut;
-				for (int i = 0; i < others.size();i++) {
-					Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
-					newOut = new PrintWriter(newSocket.getOutputStream()); 
-					newOut.println("VOTE " + others.get(i) + " " + randomVote); 
-					newOut.flush(); 
-					newOut.close();
+				Socket newClient;
+				try {
+					newClient = participantSocket.accept();
+					new Thread(new ListenPeerThread(out, pport, newClient, others, options)).start();				
+				} catch (IOException e) {
+					e.printStackTrace();
 				}
 			}
-			catch (Exception e) { 
-				e.printStackTrace(); 
-			}
-
 			
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		}).start();;
+		
+		//-----------------
+		//Generate random votes 
+		Random rand = new Random(); 
+		int n = rand.nextInt(options.size()); 
+		String randomVote = options.get(n);
+		
+		//Send votes
+		try {
+			PrintWriter newOut;
+			for (int i = 0; i < others.size();i++) {
+				Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
+				newOut = new PrintWriter(newSocket.getOutputStream()); 
+				newOut.println("VOTE " + others.get(i) + " " + randomVote); 
+				newOut.flush(); 
+				newOut.close();
+			}
+		}
+		catch (Exception e) { 
+			e.printStackTrace(); 
 		}
 		
 		
@@ -222,6 +227,12 @@ class ListenThread implements Runnable {
 				e2.printStackTrace();
 			}
 				
+			/*
+				To be re-written using Reliable Multicast (Current faults: Complicated algorithm to find majority vote, consensus was implemented poorly (not check with other participants))
+				Possible algorithm: Consensus	in	synchronous	system	with	only	crash	failures
+				-
+			*/
+			
 			
 			//Proceed to step 4 if all info is received
 			int counter = 0; 
@@ -260,7 +271,7 @@ class ListenThread implements Runnable {
 								   counter1.put(value, new Integer(count+1));
 							}
 					
-						//Find option with the highest vote Iterator it2 
+						//Find option with the highest vote
 						int max = 0; 
 						ArrayList<String> equal = new ArrayList<String>();
 						for (Entry<String, Integer> pair: counter1.entrySet()) {
@@ -272,7 +283,7 @@ class ListenThread implements Runnable {
 								equal.add( (String) pair.getKey()); 
 							}
 						}
-						System.out.println(equal);  
+						
 						//Send message to coordinator 
 						String message = String.valueOf(pport); 
 						for (int i = 0; i < others.size() ;i++) { 
