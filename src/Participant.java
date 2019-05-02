@@ -62,6 +62,9 @@ class ListenThread implements Runnable {
 	//Port that the client is listening on, and the server's port
 	int pport;
 	int cport;
+	int timeout;
+	int failureFlag;
+	
 	PrintWriter out = null;
 	BufferedReader in = null;
 	
@@ -77,10 +80,11 @@ class ListenThread implements Runnable {
 	//Socket that the participant is listening on
 	Socket psocket;
 	
-	public ListenThread(int cport, int pport) {
+	public ListenThread(int cport, int pport, int timeout, int failureFlag) {
 		this.pport = pport;
 		this.cport = cport;
-
+		this.timeout = timeout;
+		this.failureFlag = failureFlag;
 		
 		try {
 			csocket = new Socket("127.0.0.1", cport);
@@ -139,8 +143,10 @@ class ListenThread implements Runnable {
 			e2.printStackTrace();
 		}
 		
+		//Receive details from coordinator
 		receiveBasicDetails(in);
 		
+		//Talk to other clients
 		new Thread(new Runnable() {
 
 			@Override
@@ -164,25 +170,10 @@ class ListenThread implements Runnable {
 		
 		//-----------------
 		//Generate random votes 
-		Random rand = new Random(); 
-		int n = rand.nextInt(options.size()); 
-		String randomVote = options.get(n);
-		
-		//Send votes
-		try {
-			PrintWriter newOut;
-			for (int i = 0; i < others.size();i++) {
-				Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
-				newOut = new PrintWriter(newSocket.getOutputStream()); 
-				newOut.println("VOTE " + others.get(i) + " " + randomVote); 
-				newOut.flush(); 
-				newOut.close();
-			}
-		}
-		catch (Exception e) { 
-			e.printStackTrace(); 
-		}
-		
+		String randomVote = generateDecision();
+		CopyOnWriteArrayList<Integer> groupParticipant = others;
+		groupParticipant.add(pport);
+		multicast(in,out,groupParticipant,randomVote);
 		
 		
 		
@@ -191,6 +182,78 @@ class ListenThread implements Runnable {
 		 * (InterruptedException e) { // TODO Auto-generated catch block
 		 * e.printStackTrace(); } }
 		 */
+	
+		
+		
+	}
+	
+	public String generateDecision() {
+		Random rand = new Random(); 
+		int n = rand.nextInt(options.size()); 
+		String randomVote = options.get(n);
+		return randomVote;
+	}
+	
+	public void multicast(BufferedReader in, PrintWriter out, CopyOnWriteArrayList<Integer> groupParticipant, String decision) {
+		
+		try {
+			in = new BufferedReader(new InputStreamReader(psocket.getInputStream()));;
+			out = new PrintWriter(psocket.getOutputStream());
+		} catch (IOException e2) {
+			e2.printStackTrace();
+		}
+		
+		//Receive message
+		
+		try {
+
+			PrintWriter newOut;
+			for (int i = 0; i < groupParticipant.size();i++) {
+				Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
+				newOut = new PrintWriter(newSocket.getOutputStream()); 
+				newOut.println("VOTE " + others.get(i) + " " + decision); 
+				newOut.flush(); 
+				newOut.close();
+			}
+		}
+		catch (Exception e) { 
+			e.printStackTrace(); 
+		}
+		
+		HashMap<Integer, String> allReceivedPortVotes =new HashMap<Integer, String>();
+		
+		int numberOfRounds = others.size() + 1;
+		int currentRound = 1;
+		while(currentRound <= numberOfRounds) {
+			
+			while(!in.ready()) {
+				
+			}
+			
+			String line;
+			if (currentRound == 1) {
+				line = in.readLine();
+				String[] voteList = line.split(" ");
+				allReceivedPortVotes.put(Integer.parseInt(voteList[1]), voteList[2]); 
+			} else {
+				
+			}
+		}
+		
+		try { 
+			String line; 
+			while(in.ready()) {
+				line = in.readLine();
+				if (messages.size() >= 1) {
+					
+				} else {
+					
+				}
+				messages.add(line); 
+			} 
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		
 	}
 	
@@ -226,7 +289,16 @@ class ListenThread implements Runnable {
 			} catch (IOException e2) {
 				e2.printStackTrace();
 			}
-				
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
 			/*
 				To be re-written using Reliable Multicast (Current faults: Complicated algorithm to find majority vote, consensus was implemented poorly (not check with other participants))
 				Possible algorithm: Consensus	in	synchronous	system	with	only	crash	failures
@@ -234,6 +306,8 @@ class ListenThread implements Runnable {
 			*/
 			
 			
+			
+			/*
 			//Proceed to step 4 if all info is received
 			int counter = 0; 
 			boolean cont = true; 
@@ -242,9 +316,7 @@ class ListenThread implements Runnable {
 			while (cont) {
 			
 				if (counter == 0) { 
-				  
-					
-					  
+
 					//Receive votes 
 					try { 
 						String line; 
@@ -311,7 +383,7 @@ class ListenThread implements Runnable {
 					  
 					}
 				}
-			}   
+			}  */ 
 		}
 	}
 }
