@@ -66,8 +66,16 @@ class ListenThread implements Runnable {
 	int cport;
 	static int timeout;
 	int failureFlag;
+	
+	//All votes received
 	static ConcurrentHashMap<Integer, String> portVotes =new ConcurrentHashMap<Integer, String>();
 	
+	//All votes received last round
+	static ConcurrentHashMap<Integer, String> lastRoundVotes =new ConcurrentHashMap<Integer, String>();
+
+	//Check if participants needs another rounds
+	static boolean checked = true;
+
 	PrintWriter out = null;
 	BufferedReader in = null;
 	
@@ -213,14 +221,73 @@ class ListenThread implements Runnable {
 				e.printStackTrace(); 
 			}
 		} 
-		/*
-		while (true) {
-			if (ListenPeerThread.currentRound == 2) {
+	
+		new Thread(new Runnable() {
+		@Override
+			public void run() {
+			while (true) {
+				ConcurrentHashMap<String, Integer> counter1 = null;
+				System.out.println(portVotes + " " + pport);
+				if (portVotes.size() == others.size() + 1) {
+					checked = false;
+					counter1 = new ConcurrentHashMap<String, Integer> (); 
+					for (Entry<Integer, String> entry:portVotes.entrySet()) {
+						   String value = entry.getValue();
+						   Integer count = counter1.get(value);
+						   if (count == null)
+							   counter1.put(value, new Integer(1));
+						   else
+							   counter1.put(value, new Integer(count+1));
+						}
+				
+					//Find option with the highest vote
+					int max = 0; 
+					ArrayList<String> equal = new ArrayList<String>();
+					for (Entry<String, Integer> pair: counter1.entrySet()) {
+						if (max < (int) pair.getValue()) { 
+							max = (int) pair.getValue(); 
+							equal = new ArrayList<String>();
+							equal.add( (String) pair.getKey()); 
+						} else if (max == (int) pair.getValue()) { 
+							equal.add( (String) pair.getKey()); 
+						}
+					}
+					Thread.currentThread().stop();
+					//Send message to coordinator 
+					String message = String.valueOf(pport); 
+					for (int i = 0; i < others.size() ;i++) { 
+						message = message + " " + others.get(i); 
+					}
+					  
+					if (equal.size() == 1) { 
+						try {
+							out.println("OUTCOME " + equal.get(0) + " " +message); 
+							out.flush();
+							break;
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+
+					} else if (equal.size() > 1) { 
+						out.println("OUTCOME null " + message); 
+						break;
+					}  
+				} 
+
+			}
 				
 			}
-		}*/
 		
 		
+		}).start();
+		
+		/*
+		 * if time period ends
+		 * 
+		 * 
+		 * 
+		 * */
+
 	}
 	
 	
@@ -278,110 +345,49 @@ class ListenThread implements Runnable {
 
 			while(currentRound < numberOfRounds) {
 				currentRound++;
-				//Send
-				if (currentRound == 1) {
-					//Send vote to the client
-					try {
-						outToParticipant.println("VOTE " + pport + " " + randomVote); 
-						outToParticipant.flush(); 
-						
-					}
-					catch (Exception e) { 
-						e.printStackTrace(); 
-					}
-					
-				}
-				else {
-					
-				}
-				
-				
+
 				//Received 
-				boolean checked = false;
 				long start = System.currentTimeMillis();
-				long end = start + timeout - 500;
-				while (start < end) {
+				long end = start + timeout - 200;
+				while (start < end && checked) {
 					if (currentRound == 1) {
-
-						try {
-							if(inFromParticipant.ready()) {
-								String line = inFromParticipant.readLine();
-								String[] voteList = line.split(" ");
-								portVotes.put(Integer.parseInt(voteList[1]), voteList[2]); 
-								start = System.currentTimeMillis();
-								checked =true;
-								start = end +1 ;
-							}
-							while (checked) {
-								ConcurrentHashMap<String, Integer> counter1 = null;
-								System.out.println(portVotes + " " + pport);
-								if (portVotes.size() == others.size() + 1) {
-									counter1 = new ConcurrentHashMap<String, Integer> (); 
-									for (Entry<Integer, String> entry:portVotes.entrySet()) {
-										   String value = entry.getValue();
-										   Integer count = counter1.get(value);
-										   if (count == null)
-											   counter1.put(value, new Integer(1));
-										   else
-											   counter1.put(value, new Integer(count+1));
-										}
+						while(true) {
+							try {
+								if(inFromParticipant.ready()) {
+									String line = inFromParticipant.readLine();
+									String[] voteList = line.split(" ");
+									portVotes.put(Integer.parseInt(voteList[1]), voteList[2]); 
+									lastRoundVotes.put(Integer.parseInt(voteList[1]), voteList[2]); 
+									start = System.currentTimeMillis();
+									break;
+								}
 								
-									//Find option with the highest vote
-									int max = 0; 
-									ArrayList<String> equal = new ArrayList<String>();
-									for (Entry<String, Integer> pair: counter1.entrySet()) {
-										if (max < (int) pair.getValue()) { 
-											max = (int) pair.getValue(); 
-											equal = new ArrayList<String>();
-											equal.add( (String) pair.getKey()); 
-										} else if (max == (int) pair.getValue()) { 
-											equal.add( (String) pair.getKey()); 
-										}
-									}
-									
-									//Send message to coordinator 
-									String message = String.valueOf(pport); 
-									for (int i = 0; i < others.size() ;i++) { 
-										message = message + " " + others.get(i); 
-									}
-									  
-									if (equal.size() == 1) { 
-										try {
-											toServer.println("OUTCOME " + equal.get(0) + " " +message); 
-											toServer.flush();
-											toServer.close();
-	
-										} catch (Exception e) {
-											e.printStackTrace();
-										}
-	
-									} else if (equal.size() > 1) { 
-										toServer.println("OUTCOME null " + message); 
-									}  
-									checked = false;
-								} 
-
+							} catch (IOException e) {
+								e.printStackTrace();
 							}
-						} catch (IOException e) {
-							e.printStackTrace();
 						}
-						
 					}
 					//Else if nth (n>1) rounds
 					else {
-						try {
-							if(inFromParticipant.ready()) {
-								String line = inFromParticipant.readLine();
-								String[] voteList = line.split(" ");
-								portVotes.put(Integer.parseInt(voteList[1]), voteList[2]); 
-								start = System.currentTimeMillis();
-								checked =true;
-								start = end +1 ;
-							}	
-						} catch (Exception e) {
-							e.printStackTrace();
+						while(true) {
+							try {
+								if(inFromParticipant.ready()) {
+									System.out.println("secondRound");
+									String line = inFromParticipant.readLine();
+									String[] voteList = line.split(" ");
+									for (int i = 1; i < voteList.length; i = i+2) {
+										if (!portVotes.contains(Integer.parseInt(voteList[i]))) {
+											portVotes.put(Integer.parseInt(voteList[i]), voteList[i+1]); 
+											lastRoundVotes.put(Integer.parseInt(voteList[1]), voteList[2]); 
+										}
+									}
+									start = System.currentTimeMillis();
+									break;
+								}	
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
 						}
-							
 					}
 					
 					start = System.currentTimeMillis();
