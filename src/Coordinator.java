@@ -6,6 +6,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Coordinator {
@@ -46,23 +47,26 @@ public class Coordinator {
 
 class CoordinatorThread implements Runnable{
 	
+	private static volatile CopyOnWriteArrayList<String> messagesReceived;
+	
 	private int pport;
 	private int cport;
 	private int expectedPorts;
-	private volatile CopyOnWriteArrayList<Integer> portsConnected;
-	
+	private static volatile CopyOnWriteArrayList<Integer> portsConnected = new CopyOnWriteArrayList<Integer>();
+	private static ConcurrentHashMap<Integer, ArrayList<Integer>> outcome = new  ConcurrentHashMap<Integer, ArrayList<Integer>>();
+	private static ConcurrentHashMap<Integer, String> valuePort = new  ConcurrentHashMap<Integer, String>();
 	Socket client;
 	
 	CopyOnWriteArrayList<String> options = new CopyOnWriteArrayList<String>();
  	
-	public CoordinatorThread(int cport, int total, CopyOnWriteArrayList<String> options, Socket c,  CopyOnWriteArrayList<Integer> portsConnected) {
-		this.portsConnected = portsConnected;
+	public CoordinatorThread(int cport, int total, CopyOnWriteArrayList<String> options, Socket c) {
 		this.expectedPorts = total;
 		this.cport = cport;
 		this.options = options;
 		this.client = c;
-		this.portsConnected = portsConnected;
 	}
+	
+	
 	
 	@Override
 	public void run() {
@@ -100,7 +104,6 @@ class CoordinatorThread implements Runnable{
 				}
 				
 				
-				// If not all participants join, abort?
 			}
 	
 			} catch (IOException e) {
@@ -136,16 +139,27 @@ class CoordinatorThread implements Runnable{
 			//Step 4
 			try {
 				
-				//Step 1
 				while(true) {
 					String line;
 					
 					while(in.ready()) {
-
+						
 						line = in.readLine();
 						String[] lineList = line.split(" ");
-						if(lineList[0] .equals("OUTCOME")) {
-							System.out.println("YO IM HERE AND THE RESULT IS "+ lineList[1]);				
+						if(lineList[0].equals("OUTCOME")) {
+							//Need change
+							if (!outcome.contains(Integer.parseInt(lineList[2]))) {
+								ArrayList<Integer> portsParticipated = new ArrayList<Integer>();
+								for (int i = 2; i < lineList.length; i++) {
+									portsParticipated.add(Integer.parseInt(lineList[i]));
+								}
+								outcome.put(Integer.parseInt(lineList[2]), portsParticipated);
+								valuePort.put(Integer.parseInt(lineList[2]), lineList[1]);
+							} 
+							if (outcome.size() == expectedPorts) {
+								System.out.println("YO IM HERE AND THE RESULT IS "+ lineList[1] + outcome);		
+
+							}
 						} 
 						
 					}
