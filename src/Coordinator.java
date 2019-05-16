@@ -51,9 +51,10 @@ class CoordinatorThread implements Runnable{
 	
 	private int pport;
 	private int cport;
-	private int expectedPorts;
-	private static volatile CopyOnWriteArrayList<Integer> portsConnected = new CopyOnWriteArrayList<Integer>();
+	private static int expectedPorts;
+	private static  CopyOnWriteArrayList<Integer> portsConnected = new CopyOnWriteArrayList<Integer>();
 	private static ConcurrentHashMap<Integer, ArrayList<Integer>> outcome = new  ConcurrentHashMap<Integer, ArrayList<Integer>>();
+	private String valuePort;
 	Socket client;
 	
 	CopyOnWriteArrayList<String> options = new CopyOnWriteArrayList<String>();
@@ -76,7 +77,7 @@ class CoordinatorThread implements Runnable{
 			in = new BufferedReader( new InputStreamReader(client.getInputStream()));
 		} catch (IOException e1) {
 			// TODO Auto-generated catch block
-			System.out.println("Supp?");
+			e1.printStackTrace();
 		}
 		try {
 				
@@ -116,7 +117,6 @@ class CoordinatorThread implements Runnable{
 		    		if(portsConnected.get(i) != pport)
 		    			message = message + " " + String.valueOf(portsConnected.get(i));
 		    	}
-		    	System.out.println(message);
 				out.println("DETAIL" + message);
 				out.flush();
 			} catch (Exception e) {
@@ -136,34 +136,37 @@ class CoordinatorThread implements Runnable{
 				e.printStackTrace();
 			}
 			
+		
 			//Step 4
 			try {
 				
 				while(true) {
 					String line;
-					
-					while(in.ready()) {
+					if(in.ready()) {
 						
 						line = in.readLine();
+						System.out.println(line);
 						String[] lineList = line.split(" ");
 						if(lineList[0].equals("OUTCOME")) {
 							//Need change
-							if (!outcome.contains(Integer.parseInt(lineList[2]))) {
+							if (!outcome.containsKey(Integer.parseInt(lineList[2]))) {
 								ArrayList<Integer> portsParticipated = new ArrayList<Integer>();
 								for (int i = 2; i < lineList.length; i++) {
 									portsParticipated.add(Integer.parseInt(lineList[i]));
 								}
 								outcome.put(Integer.parseInt(lineList[2]), portsParticipated);
+								valuePort = lineList[1];
 							} 
-							if (outcome.size() == expectedPorts) {
-								System.out.println("YO IM HERE AND THE RESULT IS "+ lineList[1] + outcome);		
-
-							}
+							
 						} 
 						
 					}
-					
-					// If not all participants join, abort?
+					start = System.currentTimeMillis();
+					end = start + 3000;
+					if (outcome.size() == expectedPorts) {
+						System.out.println("YO IM HERE AND THE RESULT IS "+ outcome);		
+						break;
+					}
 					
 				}
 	

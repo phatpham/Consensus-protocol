@@ -12,7 +12,7 @@ public class Main {
 		options.add("A");
 		options.add("B");
 		int pport = 12337;
-		int timeout = 5000;
+		int timeout = 2000;
 		int failureFlag = 0;
 		
 		CopyOnWriteArrayList<Integer> portsConnected = new CopyOnWriteArrayList<Integer>();
@@ -29,13 +29,13 @@ public class Main {
 			
 			
 			
-			Thread listener2 = new Thread(new ListenThread(cport, pport+1, timeout, failureFlag));
+			Thread listener2 = new Thread(new ListenThread(cport, pport+1, timeout, 0));
 			listener2.start();
 			Socket serverClient2 = serverSocket.accept();
 			new Thread(new CoordinatorThread(cport, total, options, serverClient2)).start();
 			Thread.currentThread().sleep(1000);
 
-			Thread listener3 = new Thread(new ListenThread(cport, pport+2, timeout, failureFlag));
+			Thread listener3 = new Thread(new ListenThread(cport, pport+2, timeout, 1));
 			listener3.start();
 			Socket serverClient3 = serverSocket.accept();
 			new Thread(new CoordinatorThread(cport, total, options, serverClient3)).start();

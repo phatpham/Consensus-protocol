@@ -62,28 +62,33 @@ public class Participant {
 class ListenThread implements Runnable {
 	
 	//Port that the client is listening on, and the server's port
-	int pport;
-	int cport;
-	static int timeout;
-	int failureFlag;
+	private int pport;
+	private int cport;
+	private  int timeout;
+	private int failureFlag;
+	private long start;
+	private long end;
+	
+	//Keep a list of failed participants
+	private static CopyOnWriteArrayList<Integer> failedParticipants = new CopyOnWriteArrayList<Integer>();
+	
+	private  ConcurrentHashMap<Integer, String> portVotes1 =new ConcurrentHashMap<Integer, String>();
 	
 	//All votes received
-	static ConcurrentHashMap<Integer, String> portVotes =new ConcurrentHashMap<Integer, String>();
+	private  ConcurrentHashMap<Integer, String> portVotes =new ConcurrentHashMap<Integer, String>();
 	
 	//All votes received last round
-	static ConcurrentHashMap<Integer, String> lastRoundVotes =new ConcurrentHashMap<Integer, String>();
+	private  ConcurrentHashMap<Integer, String> lastRoundVotes =new ConcurrentHashMap<Integer, String>();
 
-	//Check if participants needs another rounds
-	static boolean checked = true;
 
 	PrintWriter out = null;
 	BufferedReader in = null;
 	
 	// List of other participants
-	CopyOnWriteArrayList<Integer> others = new CopyOnWriteArrayList<Integer>();
+	private CopyOnWriteArrayList<Integer> others = new CopyOnWriteArrayList<Integer>();
 
 	// List of vote options
-	CopyOnWriteArrayList<String> options = new CopyOnWriteArrayList<String>();
+	private CopyOnWriteArrayList<String> options = new CopyOnWriteArrayList<String>();
 
 	//Socket for connecting with the cordinator
 	Socket csocket;
@@ -91,6 +96,10 @@ class ListenThread implements Runnable {
 	//Socket that the participant is listening on
 	Socket psocket;
 	
+	private static int x = 0;
+
+	boolean firstRoundDone = false;
+
 	public ListenThread(int cport, int pport, int timeout, int failureFlag) {
 		this.pport = pport;
 		this.cport = cport;
@@ -117,7 +126,7 @@ class ListenThread implements Runnable {
 					line = in.readLine();
 					// If the line is DETAIL [ports]
 					String[] lineList = line.split(" ");
-					
+
 					if (lineList[0].equals("DETAIL")) {
 						for (int i = 1; i < lineList.length; i++) {
 							others.add(Integer.parseInt(lineList[i]));
@@ -140,6 +149,7 @@ class ListenThread implements Runnable {
 		}
 	}
 	
+
 	public void run() {
 		
 		try {
@@ -158,80 +168,129 @@ class ListenThread implements Runnable {
 		
 		//Talk to other clients
 		Socket newClient = null;
-
 		
+		Random rand = new Random(); 
+		String randomVote = options.get(rand.nextInt(options.size()));
 		
 		new Thread(new Runnable() {	
 		@Override
 		public void run() {
+			
+			
+			
 			try {
 				//Start listening on port
 				ServerSocket participantSocket = new ServerSocket(pport);
 				
 				//Connect to other participants
-				for (int i = 0; i < others.size();i++) {
-					Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
-				}
+				PrintWriter newOut = null;
+				
+				
+				//Send the first round of votes (number of message based on failure flag)
+				if (failureFlag == 0) {
+					try {
+						for (int i = 0; i < others.size();i++) {
+							Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
+							newOut = new PrintWriter(newSocket.getOutputStream()); 
+							newOut.println("VOTE " + pport + " " + randomVote ); 
+							newOut.flush(); 
+						}
+					}
+					catch (IOException e) { 
+						System.out.println("socket is closed"); 
+					}
+				} 
+				else if (failureFlag == 1) {
+					/*
+					int randomNumber = (int) Math.floor(Math.random() * others.size()) ;
+					if (randomNumber == others.size()) {
+						randomNumber = (int) Math.floor(Math.random() * (others.size()-1));
+					}*/
+					try {
+						for (int i = 0; i < others.size()-1;i++) {
+							Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
+							System.out.println("Vote sent to " + others.get(i));
+							newOut = new PrintWriter(newSocket.getOutputStream()); 
+							newOut.println("VOTE " + pport + " A" ); 
+							newOut.flush();
+							csocket.close(); 
+						}
+					}
+					catch (IOException e) { 
+						e.printStackTrace(); 
+					}
+				} 
 				
 				while (true) {
+
 					Socket newClient = participantSocket.accept();
-					new Thread(new ListenPeerThread(out, pport, newClient, others, options)).start();		
+					new Thread(new ListenPeerThread(newClient, others, options)).start();		
 					
 				}
 				
 				
 			} catch (IOException e) {
-				e.printStackTrace();
+				System.out.println("socket is closed"); 
 			}
 			
 		}
 
 		}).start();
 		
-		PrintWriter newOut = null;
-		if (failureFlag == 0) {
-			try {
-				for (int i = 0; i < others.size();i++) {
-					Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
-					newOut = new PrintWriter(newSocket.getOutputStream()); 
-					newOut.println("VOTE " + others.get(i) + " A" ); 
-					newOut.flush(); 
-				}
-			}
-			catch (Exception e) { 
-				e.printStackTrace(); 
-			}
-		} 
-		else if (failureFlag == 1) {
-			int randomNumber = (int) Math.floor(Math.random() * others.size()) ;
-			if (randomNumber == others.size()) {
-				randomNumber = (int) Math.floor(Math.random() * (others.size()-1));
-			}
-			try {
-				for (int i = 0; i < others.size();i++) {
-					Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
-					if (i < randomNumber) {
-						newOut = new PrintWriter(newSocket.getOutputStream()); 
-						newOut.println("VOTE " + others.get(i) + " A" ); 
-						newOut.flush();
-					} 
-				}
-			}
-			catch (Exception e) { 
-				e.printStackTrace(); 
-			}
-		} 
+		
 	
+		
+		
+		//Send the votes receive from last round
+
 		new Thread(new Runnable() {
-		@Override
+			@Override
 			public void run() {
-			while (true) {
-				ConcurrentHashMap<String, Integer> counter1 = null;
-				System.out.println(portVotes + " " + pport);
-				if (portVotes.size() == others.size() + 1) {
-					checked = false;
-					counter1 = new ConcurrentHashMap<String, Integer> (); 
-					for (Entry<Integer, String> entry:portVotes.entrySet()) {
+				while (true && failureFlag == 0) {
+					if (x==(others.size()*(others.size()+1))) {
+						try {
+							for (int i = 0; i < others.size();i++) {
+								if (!failedParticipants.contains(others.get(i))) {
+									Socket newSocket = new Socket("127.0.0.1", others.get(i)); 
+									PrintWriter newOut = new PrintWriter(newSocket.getOutputStream()); 
+									String secondRoundMessage = "";
+									for (Entry<Integer, String> pair: lastRoundVotes.entrySet()) {
+										secondRoundMessage = secondRoundMessage + " " + String.valueOf(pair.getKey()) + " " + pair.getValue() ;
+									}
+									if (!secondRoundMessage.isEmpty()) {
+										System.out.println("VOTE" + secondRoundMessage + " " + pport);
+										newOut.println("VOTE" + secondRoundMessage); 
+										newOut.flush(); 
+									}
+									lastRoundVotes.clear();
+									
+								}
+							}
+						}
+						catch (Exception e) { 
+							e.printStackTrace(); 
+						}
+						break;
+					}
+				}
+				
+			}
+
+		}).start(); 
+		
+		
+				while (true && failureFlag == 0) {
+					ConcurrentHashMap<String, Integer> counter1 = null;
+					if (portVotes.size() >= others.size()) {
+						counter1 = new ConcurrentHashMap<String, Integer> (); 
+						ConcurrentHashMap<Integer, String> allVotes = new ConcurrentHashMap<Integer, String>();
+						allVotes.put(pport, randomVote);
+						for (Entry<Integer, String> entry:portVotes.entrySet()) {
+							if (!allVotes.containsKey(entry.getKey())) {
+								allVotes.put(entry.getKey(), entry.getValue());
+							}
+						}
+						for (Entry<Integer, String> entry:allVotes.entrySet()) {
 						   String value = entry.getValue();
 						   Integer count = counter1.get(value);
 						   if (count == null)
@@ -239,64 +298,43 @@ class ListenThread implements Runnable {
 						   else
 							   counter1.put(value, new Integer(count+1));
 						}
-				
-					//Find option with the highest vote
-					int max = 0; 
-					ArrayList<String> equal = new ArrayList<String>();
-					for (Entry<String, Integer> pair: counter1.entrySet()) {
-						if (max < (int) pair.getValue()) { 
-							max = (int) pair.getValue(); 
-							equal = new ArrayList<String>();
-							equal.add( (String) pair.getKey()); 
-						} else if (max == (int) pair.getValue()) { 
-							equal.add( (String) pair.getKey()); 
+							
+						//Find option with the highest vote
+						int max = 0; 
+						ArrayList<String> equal = new ArrayList<String>();
+						for (Entry<String, Integer> pair: counter1.entrySet()) {
+							if (max < (int) pair.getValue()) { 
+								max = (int) pair.getValue(); 
+								equal = new ArrayList<String>();
+								equal.add( (String) pair.getKey()); 
+							} else if (max == (int) pair.getValue()) { 
+								equal.add( (String) pair.getKey()); 
+							}
 						}
-					}
-					Thread.currentThread().stop();
-					//Send message to coordinator 
-					String message = String.valueOf(pport); 
-					for (int i = 0; i < others.size() ;i++) { 
-						message = message + " " + others.get(i); 
-					}
-					  
-					if (equal.size() == 1) { 
-						try {
-							out.println("OUTCOME " + equal.get(0) + " " +message); 
+						//Send message to coordinator 
+						String message = String.valueOf(pport); 
+						for (int i = 0; i < others.size() ;i++) { 
+							message = message + " " + others.get(i); 
+						}
+						System.out.println(equal);
+						if (equal.size() == 1) { 
+							try {
+								out.println("OUTCOME " + equal.get(0) + " " +message); 
+								out.flush();
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+						} else if (equal.size() > 1) { 
+							out.println("OUTCOME null " + message); 
 							out.flush();
-							break;
-						} catch (Exception e) {
-							e.printStackTrace();
-						}
-
-					} else if (equal.size() > 1) { 
-						out.println("OUTCOME null " + message); 
+						} 
 						break;
-					}  
-				} 
-
-			}
-				
-			}
+					} 
 		
+				}
 		
-		}).start();
-		
-		/*
-		 * if time period ends
-		 * 
-		 * 
-		 * 
-		 * */
-
 	}
-	
-	
-	
-	static class ListenPeerThread implements Runnable {
-
-		int pport;
-		int numberOfRounds = 2;
-		int currentRound = 0;
+	private class ListenPeerThread implements Runnable {
 		
 		// List of vote options
 		CopyOnWriteArrayList<String> options;
@@ -304,22 +342,14 @@ class ListenThread implements Runnable {
 		CopyOnWriteArrayList<Integer> others;
 
 		Socket participantSocket;
-		PrintWriter toServer;
 		
-		public ListenPeerThread(PrintWriter toServer, int pport, Socket socket, CopyOnWriteArrayList<Integer> others, CopyOnWriteArrayList<String> options) {
-			this.toServer = toServer;
-			this.pport = pport;
+		public ListenPeerThread(Socket socket, CopyOnWriteArrayList<Integer> others, CopyOnWriteArrayList<String> options) {
 			this.participantSocket = socket;
 			this.others = others;
 			this.options = options;
 		}
 		
-		public String generateDecision() {
-			Random rand = new Random(); 
-			int n = rand.nextInt(options.size()); 
-			String randomVote = options.get(n);
-			return randomVote;
-		}
+		
 		
 		
 			@Override
@@ -327,75 +357,58 @@ class ListenThread implements Runnable {
 
 			//-----------------
 			//Generate random votes 
-			String randomVote = generateDecision();
-
-			PrintWriter outToParticipant = null;
 			BufferedReader inFromParticipant = null;
-			
+			PrintWriter outToParticipant = null;
 			try {
 				inFromParticipant = new BufferedReader(new InputStreamReader(participantSocket.getInputStream()));;
 				outToParticipant = new PrintWriter(participantSocket.getOutputStream());
 			} catch (IOException e2) {
 				e2.printStackTrace();
 			}
-			
-			HashMap<Integer, String> allReceivedPortVotes = new HashMap<Integer, String>();
-			
-		
-
-			while(currentRound < numberOfRounds) {
-				currentRound++;
-
-				//Received 
-				long start = System.currentTimeMillis();
-				long end = start + timeout - 200;
-				while (start < end && checked) {
-					if (currentRound == 1) {
-						while(true) {
-							try {
-								if(inFromParticipant.ready()) {
-									String line = inFromParticipant.readLine();
-									String[] voteList = line.split(" ");
-									portVotes.put(Integer.parseInt(voteList[1]), voteList[2]); 
-									lastRoundVotes.put(Integer.parseInt(voteList[1]), voteList[2]); 
-									start = System.currentTimeMillis();
-									break;
-								}
-								
-							} catch (IOException e) {
-								e.printStackTrace();
+			start = System.currentTimeMillis();
+			end = start + timeout;
+			//Receive message
+			while(start < end) {
+				try {
+					if(inFromParticipant.ready()) {
+						String line = inFromParticipant.readLine();
+						String[] voteList = line.split(" ");
+						for (int i = 1; i < voteList.length; i = i+2) {
+							if (!portVotes.contains(Integer.parseInt(voteList[i]))) {
+								portVotes.put(Integer.parseInt(voteList[i]), voteList[i+1]); 
+								lastRoundVotes.put(Integer.parseInt(voteList[i]), voteList[i+1]);
 							}
+						} 
+						synchronized (this) {
+							x++;
 						}
+						start = System.currentTimeMillis();
 					}
-					//Else if nth (n>1) rounds
-					else {
-						while(true) {
-							try {
-								if(inFromParticipant.ready()) {
-									System.out.println("secondRound");
-									String line = inFromParticipant.readLine();
-									String[] voteList = line.split(" ");
-									for (int i = 1; i < voteList.length; i = i+2) {
-										if (!portVotes.contains(Integer.parseInt(voteList[i]))) {
-											portVotes.put(Integer.parseInt(voteList[i]), voteList[i+1]); 
-											lastRoundVotes.put(Integer.parseInt(voteList[1]), voteList[2]); 
-										}
-									}
-									start = System.currentTimeMillis();
-									break;
-								}	
-							} catch (Exception e) {
-								e.printStackTrace();
-							}
-						}
-					}
-					
-					start = System.currentTimeMillis();
+				} catch (IOException e) {
+					e.printStackTrace();
 				}
-				
-				currentRound++;
-				
+				start = System.currentTimeMillis();
+			} 
+			synchronized (this) {
+				if (!(portVotes.size() == others.size())) {				
+	;				//Finding the failed participant 
+					for (Integer port: others) {
+						if (!portVotes.containsKey(port) ) {
+							if (failedParticipants.isEmpty()) {
+								failedParticipants.add(port);
+								System.out.println(failedParticipants);
+								synchronized (this) {
+									x++;
+								}
+							}
+						}
+					} 
+				}	
 			}
+
+			firstRoundDone = true;
+		
+			
 			
 			
 			try {
