@@ -161,8 +161,7 @@ class CoordinatorThread implements Runnable{
 						} 
 						
 					}
-					start = System.currentTimeMillis();
-					end = start + 3000;
+
 					if (outcome.size() == expectedPorts) {
 						System.out.println("YO IM HERE AND THE RESULT IS "+ outcome);		
 						break;

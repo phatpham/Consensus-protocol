@@ -278,60 +278,67 @@ class ListenThread implements Runnable {
 
 		}).start(); 
 		
-		
-				while (true && failureFlag == 0) {
-					ConcurrentHashMap<String, Integer> counter1 = null;
-					if (portVotes.size() >= others.size()) {
-						counter1 = new ConcurrentHashMap<String, Integer> (); 
-						ConcurrentHashMap<Integer, String> allVotes = new ConcurrentHashMap<Integer, String>();
-						allVotes.put(pport, randomVote);
-						for (Entry<Integer, String> entry:portVotes.entrySet()) {
-							if (!allVotes.containsKey(entry.getKey())) {
-								allVotes.put(entry.getKey(), entry.getValue());
-							}
+		if (failureFlag != 2) {
+			while (true && failureFlag == 0) {
+				ConcurrentHashMap<String, Integer> counter1 = null;
+				if (portVotes.size() >= others.size()) {
+					counter1 = new ConcurrentHashMap<String, Integer> (); 
+					ConcurrentHashMap<Integer, String> allVotes = new ConcurrentHashMap<Integer, String>();
+					allVotes.put(pport, randomVote);
+					for (Entry<Integer, String> entry:portVotes.entrySet()) {
+						if (!allVotes.containsKey(entry.getKey())) {
+							allVotes.put(entry.getKey(), entry.getValue());
 						}
-						for (Entry<Integer, String> entry:allVotes.entrySet()) {
-						   String value = entry.getValue();
-						   Integer count = counter1.get(value);
-						   if (count == null)
-							   counter1.put(value, new Integer(1));
-						   else
-							   counter1.put(value, new Integer(count+1));
-						}
-							
-						//Find option with the highest vote
-						int max = 0; 
-						ArrayList<String> equal = new ArrayList<String>();
-						for (Entry<String, Integer> pair: counter1.entrySet()) {
-							if (max < (int) pair.getValue()) { 
-								max = (int) pair.getValue(); 
-								equal = new ArrayList<String>();
+					}
+					for (Entry<Integer, String> entry:allVotes.entrySet()) {
+					   String value = entry.getValue();
+					   Integer count = counter1.get(value);
+					   if (count == null)
+						   counter1.put(value, new Integer(1));
+					   else
+						   counter1.put(value, new Integer(count+1));
+					}
+						
+					//Find option with the highest vote
+					int max = 0; 
+					ArrayList<String> equal = new ArrayList<String>();
+					for (Entry<String, Integer> pair: counter1.entrySet()) {
+						if (max < (int) pair.getValue()) { 
+							max = (int) pair.getValue(); 
+							equal = new ArrayList<String>();
 								equal.add( (String) pair.getKey()); 
-							} else if (max == (int) pair.getValue()) { 
-								equal.add( (String) pair.getKey()); 
-							}
+						} else if (max == (int) pair.getValue()) { 
+							equal.add( (String) pair.getKey()); 
 						}
-						//Send message to coordinator 
-						String message = String.valueOf(pport); 
-						for (int i = 0; i < others.size() ;i++) { 
-							message = message + " " + others.get(i); 
-						}
-						System.out.println(equal);
-						if (equal.size() == 1) { 
-							try {
-								out.println("OUTCOME " + equal.get(0) + " " +message); 
-								out.flush();
-							} catch (Exception e) {
-								e.printStackTrace();
-							}
-						} else if (equal.size() > 1) { 
-							out.println("OUTCOME null " + message); 
+					}
+					//Send message to coordinator 
+					String message = String.valueOf(pport); 
+					for (int i = 0; i < others.size() ;i++) { 
+						message = message + " " + others.get(i); 
+					}
+					System.out.println(equal);
+					if (equal.size() == 1) { 
+						try {
+							out.println("OUTCOME " + equal.get(0) + " " +message); 
 							out.flush();
-						} 
-						break;
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					} else if (equal.size() > 1) { 
+						out.println("OUTCOME null " + message); 
+						out.flush();
 					} 
-		
-				}
+					break;
+				} 
+			}
+		} else {
+			try {
+				csocket.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
 		
 	}
 	private class ListenPeerThread implements Runnable {
